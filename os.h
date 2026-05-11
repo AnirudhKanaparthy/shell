@@ -24,11 +24,13 @@ typedef struct {
 
 typedef struct {
     char** env;
+    const char* workdir;
 
     int fd_stderr;
     int fd_stdout;
     int fd_stdin;
 
+    bool no_reset;
     bool async;
 } Cmd_Opt;
 
@@ -37,6 +39,15 @@ typedef struct {
         (arr)->cap = initial_size;                                                  \
         (arr)->items = realloc((arr)->items, sizeof(*((arr)->items)) * (arr)->cap); \
         assert((arr)->items && "Could not reallocate array");                       \
+    } while(0)
+
+#define da_grow(arr, new_size)                                                          \
+    do {                                                                                \
+        if((arr)->cap < (new_size)) {                                                   \
+            (arr)->cap = (new_size);                                                    \
+            (arr)->items = realloc((arr)->items, sizeof(*((arr)->items)) * (arr)->cap); \
+            assert((arr)->items && "Could not reallocate array");                       \
+        }                                                                               \
     } while(0)
 
 // Inspired by @rexim
@@ -51,7 +62,7 @@ typedef struct {
     } while(0)
 
 #pragma clang diagnostic ignored "-Winitializer-overrides"
-#define os_cmd_run(cmd, ...) os_cmd_run_opt(cmd, (Cmd_Opt){.env=environ, .async=false, __VA_ARGS__})
+#define os_cmd_run(cmd, ...) os_cmd_run_opt(cmd, (Cmd_Opt){.env=environ, .async=false, .no_reset=false, __VA_ARGS__})
 
 Cmd  os_cmd_create(const char* cmd_line, size_t len);
 void os_cmd_free(Cmd cmd);
@@ -83,18 +94,35 @@ int os_cmd_run_opt(Cmd* cmd, Cmd_Opt opts) {
     switch(pid) {
         case -1: return -1;
         case  0: {
-            if(opts.fd_stderr > -1) dup2(opts.fd_stderr, STDERR_FILENO);
-            if(opts.fd_stdout > -1) dup2(opts.fd_stdout, STDOUT_FILENO);
-            if(opts.fd_stdin  > -1) dup2(opts.fd_stdin,  STDIN_FILENO);
+
+            if(opts.fd_stderr > -1 && dup2(opts.fd_stderr, STDERR_FILENO) == -1) {
+                perror("[ERR] os_cmd_run_opt - dup2");
+                exit(1);
+            }
+            if(opts.fd_stdout > -1 && dup2(opts.fd_stdout, STDOUT_FILENO) == -1) {
+                perror("[ERR] os_cmd_run_opt - dup2");
+                exit(1);
+            }
+            if(opts.fd_stdin  > -1 && dup2(opts.fd_stdin,  STDIN_FILENO) == -1) {
+                perror("[ERR] os_cmd_run_opt - dup2");
+                exit(1);
+            }
+
+            if(opts.workdir && chdir(opts.workdir) == -1) {
+                perror("[ERR] os_cmd_run_opt - chdir");
+                exit(1);
+            }
 
             environ = opts.env;
             da_append(cmd, NULL);
 
             execvp(cmd->items[0], cmd->items);
+
             perror("[ERR] os_cmd_run_opt - execvp");
             exit(1);
         }
         default: {
+            if(!opts.no_reset) cmd->len = 0;
             if(!opts.async) {
                 int status = 0;
                 if(waitpid(pid, &status, 0) != pid) return -1;
@@ -129,6 +157,7 @@ Cmd os_cmd_create(const char* cmd_line, size_t len) {
     return cmd;
 }
 
+// This assumes the C-string in Cmd are heap allocated
 void os_cmd_free(Cmd cmd) {
     for(size_t i = 0; i < cmd.len; ++i) {
         free(cmd.items[i]);
