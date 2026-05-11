@@ -78,7 +78,7 @@ int main() {
         if(strncmp(cmd_buffer, "exit", 4) == 0) { break; }
 
         if(!sv_split(&cmd_lines, (String_View){.data=cmd_buffer, .len=len}, '|')) {
-            // TODO: Handle error
+            assert(0 && "TODO: Handle error");
         }
         
         cmds.len = 0;
@@ -105,7 +105,7 @@ int main() {
         int prev_in = -1;
         for(size_t i = 0; i < cmd_lines.len; ++i) {
             int pipe_pair[2] = {0};
-            if(pipe(pipe_pair) != 0) {/* TODO: Error */}
+            if(pipe(pipe_pair) != 0) { assert(0 && "TODO: Handle error"); }
 
             pipes.items[i].in = prev_in;
             pipes.items[i].out = pipe_pair[1];
