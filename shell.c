@@ -93,7 +93,7 @@ int main() {
         if(cmds.len <= 0) continue;
 
         if(cmds.len == 1) {
-            int status = os_cmd_run(cmds.items);
+            int status = os_cmd_run(cmds.items, .no_reset=true);
             LOG_DBG("exited with: %d\n", status);
             os_cmd_free(cmds.items[0]);
 
@@ -106,7 +106,7 @@ int main() {
             int pipe_pair[2] = {0};
             if(pipe(pipe_pair) != 0) { assert(0 && "TODO: Handle error"); }
 
-            int pid = os_cmd_run(cmds.items+i, .async=true, .fd_stdin=prev_in, .fd_stdout=pipe_pair[1]);
+            int pid = os_cmd_run(cmds.items+i, .no_reset=true, .async=true, .fd_stdin=prev_in, .fd_stdout=pipe_pair[1]);
 
             if(prev_in != -1 && close(prev_in) != 0) return 1;
             if(close(pipe_pair[1]) != 0) return 1;
@@ -117,8 +117,11 @@ int main() {
             os_cmd_free(cmds.items[i]);
             da_append(&procs, pid);
         }
-        int pid = os_cmd_run(cmds.items+(cmds.len-1), .async=true, .fd_stdin=prev_in, .fd_stdout=-1);
+        int pid = os_cmd_run(cmds.items+(cmds.len-1), .no_reset=true, .async=true, .fd_stdin=prev_in, .fd_stdout=-1);
         if(prev_in != -1 && close(prev_in) != 0) return 1;
+        LOG_DBG("started process: %d\n", pid);
+        os_cmd_free(cmds.items[cmds.len-1]);
+        da_append(&procs, pid);
 
         LOG_DBG("started all processes\n");
 

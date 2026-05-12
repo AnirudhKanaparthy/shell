@@ -95,17 +95,26 @@ int os_cmd_run_opt(Cmd* cmd, Cmd_Opt opts) {
         case -1: return -1;
         case  0: {
 
-            if(opts.fd_stderr > 0 && dup2(opts.fd_stderr, STDERR_FILENO) == -1 && close(opts.fd_stderr) == -1) {
-                perror("[ERR] os_cmd_run_opt - dup2 - stderr");
-                exit(1);
+            if(opts.fd_stderr > 0) {
+                if(dup2(opts.fd_stderr, STDERR_FILENO) == -1) {
+                    perror("[ERR] os_cmd_run_opt - dup2 - stderr");
+                    exit(1);
+                }
+                close(opts.fd_stderr);
             }
-            if(opts.fd_stdout > 0 && dup2(opts.fd_stdout, STDOUT_FILENO) == -1 && close(opts.fd_stdout) == -1) {
-                perror("[ERR] os_cmd_run_opt - dup2 - stdout");
-                exit(1);
+            if(opts.fd_stdout > 0) {
+                if(dup2(opts.fd_stdout, STDOUT_FILENO) == -1) {
+                    perror("[ERR] os_cmd_run_opt - dup2 - stdout");
+                    exit(1);
+                }
+                close(opts.fd_stdout);
             }
-            if(opts.fd_stdin  > 0 && dup2(opts.fd_stdin,  STDIN_FILENO) == -1 && close(opts.fd_stdin) == -1) {
-                perror("[ERR] os_cmd_run_opt - dup2 - stdin");
-                exit(1);
+            if(opts.fd_stdin  > 0) {
+                if(dup2(opts.fd_stdin,  STDIN_FILENO) == -1) {
+                    perror("[ERR] os_cmd_run_opt - dup2 - stdin");
+                    exit(1);
+                }
+                close(opts.fd_stdin);
             }
 
             if(opts.workdir && chdir(opts.workdir) == -1) {
@@ -134,6 +143,7 @@ int os_cmd_run_opt(Cmd* cmd, Cmd_Opt opts) {
     }
 }
 
+// TODO: Get rid of this, this has caused so much confusion and bugs.
 Cmd os_cmd_create(const char* cmd_line, size_t len) {
     Cmd cmd = {0};
  
