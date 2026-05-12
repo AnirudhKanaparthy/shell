@@ -4,6 +4,8 @@
 #define OS_IMPLEMENTATION
 #include "os.h"
 
+#define LOG_DBG(...) (void)0
+
 void sigint_handler(int sig) { (void)sig; }
 
 typedef struct {
@@ -88,10 +90,11 @@ int main() {
             if(cmd.len == 0) continue;
             da_append(&cmds, cmd);
         }
+        if(cmds.len <= 0) continue;
 
         if(cmds.len == 1) {
             int status = os_cmd_run(cmds.items);
-            printf("exited with: %d\n", status);
+            LOG_DBG("exited with: %d\n", status);
             os_cmd_free(cmds.items[0]);
 
             continue;
@@ -110,19 +113,19 @@ int main() {
 
             prev_in = pipe_pair[0];
 
-            printf("started process: %d\n", pid);
+            LOG_DBG("started process: %d\n", pid);
             os_cmd_free(cmds.items[i]);
             da_append(&procs, pid);
         }
         int pid = os_cmd_run(cmds.items+(cmds.len-1), .async=true, .fd_stdin=prev_in, .fd_stdout=-1);
         if(prev_in != -1 && close(prev_in) != 0) return 1;
 
-        printf("started all processes\n");
+        LOG_DBG("started all processes\n");
 
         for(size_t i = 0; i < cmds.len; ++i) {
             int status = 0;
             int pid = wait(&status);
-            printf("child exited: %d\n", pid);
+            LOG_DBG("child exited: %d\n", pid);
         }
     }
     free(cmds.items);
