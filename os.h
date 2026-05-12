@@ -95,21 +95,21 @@ int os_cmd_run_opt(Cmd* cmd, Cmd_Opt opts) {
         case -1: return -1;
         case  0: {
 
-            if(opts.fd_stderr > -1 && dup2(opts.fd_stderr, STDERR_FILENO) == -1) {
-                perror("[ERR] os_cmd_run_opt - dup2");
+            if(opts.fd_stderr > 0 && dup2(opts.fd_stderr, STDERR_FILENO) == -1 && close(opts.fd_stderr) == -1) {
+                perror("[ERR] os_cmd_run_opt - dup2 - stderr");
                 exit(1);
             }
-            if(opts.fd_stdout > -1 && dup2(opts.fd_stdout, STDOUT_FILENO) == -1) {
-                perror("[ERR] os_cmd_run_opt - dup2");
+            if(opts.fd_stdout > 0 && dup2(opts.fd_stdout, STDOUT_FILENO) == -1 && close(opts.fd_stdout) == -1) {
+                perror("[ERR] os_cmd_run_opt - dup2 - stdout");
                 exit(1);
             }
-            if(opts.fd_stdin  > -1 && dup2(opts.fd_stdin,  STDIN_FILENO) == -1) {
-                perror("[ERR] os_cmd_run_opt - dup2");
+            if(opts.fd_stdin  > 0 && dup2(opts.fd_stdin,  STDIN_FILENO) == -1 && close(opts.fd_stdin) == -1) {
+                perror("[ERR] os_cmd_run_opt - dup2 - stdin");
                 exit(1);
             }
 
             if(opts.workdir && chdir(opts.workdir) == -1) {
-                perror("[ERR] os_cmd_run_opt - chdir");
+                perror("[ERR] os_cmd_run_opt - chdir - workdir");
                 exit(1);
             }
 
@@ -123,6 +123,7 @@ int os_cmd_run_opt(Cmd* cmd, Cmd_Opt opts) {
         }
         default: {
             if(!opts.no_reset) cmd->len = 0;
+
             if(!opts.async) {
                 int status = 0;
                 if(waitpid(pid, &status, 0) != pid) return -1;

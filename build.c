@@ -45,8 +45,7 @@ int main(int argc, char* argv[]) {
     file_ts = get_mtime("shell.c");
     if(file_ts == -1) return 1;
 
-    exec_ts = get_mtime("shell");
-    if(exec_ts == -1) return 1;
+    exec_ts = get_mtime("shell"); // This may not exist
 
     long file2_ts = get_mtime("os.h");
     if(file2_ts == -1) return 1;
@@ -58,6 +57,8 @@ int main(int argc, char* argv[]) {
         da_append(&cmd, "-Wextra");
         da_append(&cmd, "-Wno-unknown-pragmas");
         da_append(&cmd, "-Wno-override-init");
+        da_append(&cmd, "-ggdb");
+//        da_append(&cmd, "-fsanitize=address"); // TODO: Fix the memory leak
         da_append(&cmd, "-o");
         da_append(&cmd, "shell");
         da_append(&cmd, "shell.c");

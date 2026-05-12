@@ -68,7 +68,6 @@ int main() {
     Cmd_Arr cmds = {0};
     Processes procs = {0};
     String_View_Arr cmd_lines = {0};
-    Pipe_Pair_Arr pipes = {0};
     while(true) {
         printf("$ ");
 
@@ -78,6 +77,7 @@ int main() {
 
         if(strncmp(cmd_buffer, "exit", 4) == 0) { break; }
 
+        cmd_lines.len = 0;
         if(!sv_split(&cmd_lines, (String_View){.data=cmd_buffer, .len=len}, '|')) {
             assert(0 && "TODO: Handle error");
         }
@@ -97,47 +97,34 @@ int main() {
             continue;
         }
 
-        // More than 1 commands piped
-        da_grow(&pipes, cmd_lines.len);
-        pipes.len = cmd_lines.len;
-
+        procs.len = 0;
         int prev_in = -1;
-        for(size_t i = 0; i < cmd_lines.len; ++i) {
+        for(size_t i = 0; i < cmds.len-1; ++i) {
             int pipe_pair[2] = {0};
             if(pipe(pipe_pair) != 0) { assert(0 && "TODO: Handle error"); }
 
-            pipes.items[i].in = prev_in;
-            pipes.items[i].out = pipe_pair[1];
-            prev_in = pipe_pair[0];
-        }
+            int pid = os_cmd_run(cmds.items+i, .async=true, .fd_stdin=prev_in, .fd_stdout=pipe_pair[1]);
 
-        procs.len = 0;
-        for(size_t i = 0; i < cmd_lines.len; ++i) {
-            int pid = os_cmd_run(cmds.items+i, .async=true, .fd_stdin=pipes.items[i].in, .fd_stdout=pipes.items[i].out);
-            printf("started pid: %d\n", pid);
+            if(prev_in != -1 && close(prev_in) != 0) return 1;
+            if(close(pipe_pair[1]) != 0) return 1;
+
+            prev_in = pipe_pair[0];
+
+            printf("started process: %d\n", pid);
             os_cmd_free(cmds.items[i]);
             da_append(&procs, pid);
         }
-        pipes.items[0].in = prev_in;
+        int pid = os_cmd_run(cmds.items+(cmds.len-1), .async=true, .fd_stdin=prev_in, .fd_stdout=-1);
+        if(prev_in != -1 && close(prev_in) != 0) return 1;
 
         printf("started all processes\n");
 
-        for(size_t i = 0; i < cmd_lines.len; ++i) {
+        for(size_t i = 0; i < cmds.len; ++i) {
             int status = 0;
             int pid = wait(&status);
             printf("child exited: %d\n", pid);
         }
-
-        ssize_t bytes_read = read(prev_in, cmd_buffer, sizeof(cmd_buffer));
-        cmd_buffer[bytes_read] = '\0';
-        printf("%s\n", cmd_buffer);
-
-        for(size_t i = 0; i < pipes.len; ++i) {
-            close(pipes.items[i].in);
-            close(pipes.items[i].out);
-        }
     }
-    free(pipes.items);
     free(cmds.items);
     free(procs.items);
     free(cmd_lines.items);
