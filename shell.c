@@ -8,41 +8,6 @@
 
 void sigint_handler(int sig) { (void)sig; }
 
-typedef struct {
-    const char* data;
-    size_t len;
-} String_View;
-
-typedef struct {
-    String_View* items;
-    size_t len;
-    size_t cap;
-} String_View_Arr;
-
-String_View_Arr* sv_split(String_View_Arr* arr, String_View line, char delim) {
-    size_t prev = 0;
-    for(size_t i = 0; i < line.len; ++i) {
-        if(line.data[i] == delim) {
-            size_t len = i - prev;
-            String_View sv = (String_View){
-                .data=line.data+prev,
-                .len=len,
-            };
-            da_append(arr, sv);
-            i += 1;
-            prev = i;
-        }
-    }
-
-    size_t len = line.len - prev;
-    String_View sv = (String_View){
-        .data=line.data+prev,
-        .len=len,
-    };
-    da_append(arr, sv);
-
-    return arr;
-}
 
 typedef struct {
     int in;
@@ -86,7 +51,17 @@ int main() {
 
         cmds.len = 0;
         for(size_t i = 0; i < cmd_lines.len; ++i) {
-            Cmd cmd = os_cmd_create(cmd_lines.items[i].data, cmd_lines.items[i].len);
+            String_View trimmed = sv_trim(cmd_lines.items[i], ' ');
+            if(trimmed.len == 0) continue;
+
+            String_View_Arr sv = {0};
+            if(!sv_split(&sv, trimmed, ' ')) assert(0 && "TODO: Handle error");
+
+            for(size_t j = 0; j < sv.len; ++j) {
+                printf("[DBG] >>%.*s<<\n", sv.items[j].len, sv.items[j].data);
+            }
+
+            Cmd cmd = os_cmd_sv(sv);
             if(cmd.len == 0) continue;
             da_append(&cmds, cmd);
         }
@@ -95,8 +70,7 @@ int main() {
         if(cmds.len == 1) {
             int status = os_cmd_run(cmds.items, .no_reset=true);
             LOG_DBG("exited with: %d\n", status);
-            os_cmd_free(cmds.items[0]);
-
+            free(cmds.items[0].items);
             continue;
         }
 
@@ -114,13 +88,13 @@ int main() {
             prev_in = pipe_pair[0];
 
             LOG_DBG("started process: %d\n", pid);
-            os_cmd_free(cmds.items[i]);
+            free(cmds.items[i].items);
             da_append(&procs, pid);
         }
         int pid = os_cmd_run(cmds.items+(cmds.len-1), .no_reset=true, .async=true, .fd_stdin=prev_in, .fd_stdout=-1);
         if(prev_in != -1 && close(prev_in) != 0) return 1;
         LOG_DBG("started process: %d\n", pid);
-        os_cmd_free(cmds.items[cmds.len-1]);
+        free(cmds.items[cmds.len-1].items);
         da_append(&procs, pid);
 
         LOG_DBG("started all processes\n");

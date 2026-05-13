@@ -7,14 +7,28 @@
 
 extern char** environ;
 
-// TODO: Use String_View* instead of char**
-// No new memory is allocated during creation of Cmd,
-// it is temporarily allocated in os_cmd_run to interface with glibc properly
 typedef struct {
-    char** items;
+    const char* data;
+    ssize_t len;
+} String_View;
+
+typedef struct {
+    String_View* items;
+    size_t len;
+    size_t cap;
+} String_View_Arr;
+
+String_View_Arr* sv_split(String_View_Arr* arr, String_View line, char delim);
+char* sv_cstr(String_View str);
+String_View sv_trim(String_View sv, char cutc);
+
+typedef struct {
+    String_View* items;
     size_t len;
     size_t cap;
 } Cmd;
+
+#define os_cmd_sv(sv) ((Cmd){.items=(sv).items, .len=(sv).len, .cap=(sv).cap})
 
 typedef struct {
     Cmd* items;
@@ -79,10 +93,63 @@ int  os_cmd_run_opt(Cmd* cmd, Cmd_Opt opts);
 #include <sys/wait.h>
 #include <unistd.h>
 
+char* sv_cstr(String_View str) {
+    return strndup(str.data, str.len);
+}
+
+String_View sv_trim(String_View sv, char cutc) {
+    // Left side
+    while((sv.len-1) >= 0 && *(sv.data) == cutc) {
+        ++(sv.data);
+        --(sv.len);
+    }
+
+    // Right side
+    while((sv.len-1) >= 0 && sv.data[sv.len-1] == cutc) {
+        --(sv.len);
+    }
+
+    return sv;
+}
+
+char** os_cmd_args(Cmd cmd) {
+    char** cmd_cstr = (char**)malloc(sizeof(char*) * (cmd.len+1));
+    for(size_t i = 0; i < cmd.len; ++i) {
+        cmd_cstr[i] = sv_cstr(cmd.items[i]);
+    }
+    cmd_cstr[cmd.len] = NULL;
+    return cmd_cstr;
+}
+
+String_View_Arr* sv_split(String_View_Arr* arr, String_View line, char delim) {
+    size_t prev = 0;
+    for(ssize_t i = 0; i < line.len; ++i) {
+        if(line.data[i] == delim) {
+            size_t len = i - prev;
+            String_View sv = (String_View){
+                .data=line.data+prev,
+                .len=len,
+            };
+            da_append(arr, sv);
+            i += 1;
+            prev = i;
+        }
+    }
+
+    size_t len = line.len - prev;
+    String_View sv = (String_View){
+        .data=line.data+prev,
+        .len=len,
+    };
+    da_append(arr, sv);
+
+    return arr;
+}
+
 void os_cmd_printf(Cmd cmd) {
     printf("CMD: ");
     for(size_t i = 0; i < cmd.len; ++i) {
-        printf("%s ", cmd.items[i]);
+        printf("%.*s ", (int)cmd.items[i].len, cmd.items[i].data);
     }
     printf("\n");
 }
@@ -123,9 +190,9 @@ int os_cmd_run_opt(Cmd* cmd, Cmd_Opt opts) {
             }
 
             environ = opts.env;
-            da_append(cmd, NULL);
 
-            execvp(cmd->items[0], cmd->items);
+            char** args = os_cmd_args(*cmd);
+            execvp(args[0], args);
 
             perror("[ERR] os_cmd_run_opt - execvp");
             exit(1);
@@ -141,39 +208,6 @@ int os_cmd_run_opt(Cmd* cmd, Cmd_Opt opts) {
             return pid;
         }
     }
-}
-
-// TODO: Get rid of this, this has caused so much confusion and bugs.
-Cmd os_cmd_create(const char* cmd_line, size_t len) {
-    Cmd cmd = {0};
- 
-    size_t prev = 0;
-    while(prev < len && isspace(cmd_line[prev])) ++prev;
-
-    for(size_t i = prev; i < len;) {
-        if(isspace(cmd_line[i])) {
-            da_append(&cmd, strndup(cmd_line+prev, i-prev));
-
-            ++i;
-            while(i < len && isspace(cmd_line[i])) ++i;
-            prev = i;
-        } else {
-            ++i;
-        }
-    }
-    if(prev < len) {
-        da_append(&cmd, strndup(cmd_line+prev, len-prev));
-    }
-
-    return cmd;
-}
-
-// This assumes the C-string in Cmd are heap allocated
-void os_cmd_free(Cmd cmd) {
-    for(size_t i = 0; i < cmd.len; ++i) {
-        free(cmd.items[i]);
-    }
-    free(cmd.items);
 }
 
 #endif // OS_IMPLEMENTATION

@@ -58,7 +58,7 @@ int main(int argc, char* argv[]) {
         da_append(&cmd, "-Wno-unknown-pragmas");
         da_append(&cmd, "-Wno-override-init");
         da_append(&cmd, "-ggdb");
-//        da_append(&cmd, "-fsanitize=address"); // TODO: Fix the memory leak
+        da_append(&cmd, "-fsanitize=address"); // TODO: Fix the memory leak
         da_append(&cmd, "-o");
         da_append(&cmd, "shell");
         da_append(&cmd, "shell.c");
