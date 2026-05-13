@@ -11,7 +11,7 @@ long get_mtime(const char* path) {
 }
 
 int main(int argc, char* argv[]) {
-    (void)argc;
+    bool force_rebuild = (argc >= 2) && (strncmp(argv[1], "-r", sizeof("-r")-1) == 0);
 
     Cmd cmd = {0};
     int status = 0;
@@ -26,18 +26,29 @@ int main(int argc, char* argv[]) {
         // Dependency was modified at a later time than the target
         printf("[INFO] builder executable is outdated, building new...\n");
 
-        da_append(&cmd, "gcc");
-        da_append(&cmd, "-Wall");
-        da_append(&cmd, "-Wextra");
-        da_append(&cmd, "-Wno-unknown-pragmas");
-        da_append(&cmd, "-o");
-        da_append(&cmd, argv[0]);
-        da_append(&cmd, __FILE__);
+        os_cmd_append(&cmd, "gcc");
+        os_cmd_append(&cmd, "-Wall");
+        os_cmd_append(&cmd, "-Wextra");
+        os_cmd_append(&cmd, "-Wno-unknown-pragmas");
+        os_cmd_append(&cmd, "-o");
+        os_cmd_append(&cmd, argv[0]);
+        os_cmd_append(&cmd, __FILE__);
         status = os_cmd_run(&cmd);
         if(status != 0) return 1;
         printf("[INFO] exit status: %d\n", status);
 
-        execvp(argv[0], argv);
+        char** targs;
+        if(!force_rebuild) {
+            targs = (char**)malloc(sizeof(char*) * (argc+2));
+            for(size_t i = 0; i < argc; ++i) {
+                targs[i] = argv[i];
+            }
+            targs[argc] = "-r";
+            targs[argc+1] = NULL;
+        } else {
+            targs = argv;
+        }
+        execvp(argv[0], targs);
         fprintf(stderr, "[ERR] Could not load in the latest built program image\n");
         exit(1);
     }
@@ -50,18 +61,18 @@ int main(int argc, char* argv[]) {
     long file2_ts = get_mtime("os.h");
     if(file2_ts == -1) return 1;
 
-    if(file_ts > exec_ts || file2_ts > exec_ts) {
+    if(force_rebuild || file_ts > exec_ts || file2_ts > exec_ts) {
         // Dependency was modified at a later time than the target
-        da_append(&cmd, "gcc");
-        da_append(&cmd, "-Wall");
-        da_append(&cmd, "-Wextra");
-        da_append(&cmd, "-Wno-unknown-pragmas");
-        da_append(&cmd, "-Wno-override-init");
-        da_append(&cmd, "-ggdb");
-        da_append(&cmd, "-fsanitize=address"); // TODO: Fix the memory leak
-        da_append(&cmd, "-o");
-        da_append(&cmd, "shell");
-        da_append(&cmd, "shell.c");
+        os_cmd_append(&cmd, "gcc");
+        os_cmd_append(&cmd, "-Wall");
+        os_cmd_append(&cmd, "-Wextra");
+        os_cmd_append(&cmd, "-Wno-unknown-pragmas");
+        os_cmd_append(&cmd, "-Wno-override-init");
+        os_cmd_append(&cmd, "-ggdb");
+        os_cmd_append(&cmd, "-fsanitize=address"); // TODO: Fix the memory leak
+        os_cmd_append(&cmd, "-o");
+        os_cmd_append(&cmd, "shell");
+        os_cmd_append(&cmd, "shell.c");
 
         status = os_cmd_run(&cmd);
         if(status != 0) return 1;
@@ -71,4 +82,3 @@ int main(int argc, char* argv[]) {
     printf("[INFO] Build complete\n");
     return 0;
 }
-

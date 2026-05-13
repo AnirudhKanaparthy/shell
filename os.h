@@ -77,6 +77,11 @@ typedef struct {
 
 #pragma clang diagnostic ignored "-Winitializer-overrides"
 #define os_cmd_run(cmd, ...) os_cmd_run_opt(cmd, (Cmd_Opt){.env=environ, .async=false, .no_reset=false, __VA_ARGS__})
+#define os_cmd_append(cmd, str)                                         \
+    do {                                                                \
+        String_View sv = (String_View){.data=(str), .len=strlen(str)};  \
+        da_append((cmd), sv);                                           \
+    } while(0)
 
 Cmd  os_cmd_create(const char* cmd_line, size_t len);
 void os_cmd_free(Cmd cmd);

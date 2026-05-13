@@ -57,10 +57,6 @@ int main() {
             String_View_Arr sv = {0};
             if(!sv_split(&sv, trimmed, ' ')) assert(0 && "TODO: Handle error");
 
-            for(size_t j = 0; j < sv.len; ++j) {
-                printf("[DBG] >>%.*s<<\n", sv.items[j].len, sv.items[j].data);
-            }
-
             Cmd cmd = os_cmd_sv(sv);
             if(cmd.len == 0) continue;
             da_append(&cmds, cmd);
@@ -69,6 +65,7 @@ int main() {
 
         if(cmds.len == 1) {
             int status = os_cmd_run(cmds.items, .no_reset=true);
+            (void)status; // The below can be a no-op
             LOG_DBG("exited with: %d\n", status);
             free(cmds.items[0].items);
             continue;
@@ -102,6 +99,7 @@ int main() {
         for(size_t i = 0; i < cmds.len; ++i) {
             int status = 0;
             int pid = wait(&status);
+            (void)pid; // The below can be a no-op
             LOG_DBG("child exited: %d\n", pid);
         }
     }
